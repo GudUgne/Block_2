@@ -12,7 +12,7 @@ user User[1000]; //kad nereiketu linkedlisto
 
 struct Transaction {
 
-	std::string ID = "";
+	std::string ID = ""; //naudojama merkel medziui
 	std::string Sender = "";
 	std::string Receiver = "";
 	int Sum = 0;
@@ -21,7 +21,7 @@ struct Transaction {
 
 struct Block {
 	std::string Version = "0.1v";
-	std::string Merkel;
+	std::string Merkel; //cia saugoma daug hashu suhasuota i viena
 	int TimeStamp = 0;
 	int Nonce = 0;
 	int DifficultyTarget = 0;
@@ -73,6 +73,10 @@ void TransactionGenerator() {
 			if (User[ran].Public_Key == u1) y--;	//generuoja atsitiktini gaveja, jei toks pat, kaip siuntejas, generuoja naujai
 		}
 		n.Receiver = User[ran].Public_Key;
+
+		//sender, receiver ir suma sudedami kaip stringai ir uzhashuojami
+		n.ID = sha256(n.Sender + std::to_string(n.Sum) + n.Receiver);
+
 		TransPool.push_back(n);		//sugeneruojama viena transakcija ir tada papushinama i poola
 	}
 	
@@ -82,17 +86,70 @@ void TransactionGenerator() {
 std::vector<Transaction> ChoosingTransactions() {	//pasirenkamos 100 transakciju
 
 	int ran;
-	std::vector<Transaction> Atrenkamos;
-	//AtrinktosT // bloko atrinktos 
-	//Transpool //visos kiek yra transakciju
+	std::vector<Transaction> Atrenkamos; //laikinos, kurios veliau paduodamos jau i bloko transakciju vektoriu
+	//AtrinktosT // bloko atsirinktos 100
+	//Transpool //visos kiek yra transakciju, 10000
 
 		for (int i = 0; i < 100; i++) {
 			ran = std::round(0 + (double)rand() / RAND_MAX * (TransPool.size() - 1));	//paimama atsitiktine transakcija
 			Atrenkamos.push_back(TransPool.at(ran)); //paduodama is poolo
 			TransPool.erase(TransPool.begin() + ran);
 		};
+
+		return Atrenkamos; //jos keliauja i bloke paskirta transakciju vektoriu
 }
 
+
+std::string MerkelRoot(std::vector<Transaction> a)
+{
+	std::vector<std::string> hashes, hashes2; // pirmame vektoriuje visi hashai, antrame jau poromis suhashinti
+	for (int i = 0; i < 100; i++)	//vaziuoja per visas 100 bloko transakciju
+	{
+		hashes.push_back(a.at(i).ID);
+	}
+	while (hashes.size() != 1)
+	{
+		for (int y = 0; y < hashes.size(); y++)
+		{
+			if (y + 1 != hashes.size()) {		//jei nepaskutinis hashas, hashuoja viena ir einanti po jo 
+				hashes2.push_back(sha256(hashes.at(y) + hashes.at(y + 1)));
+			}
+			else {		//jei hashas paskutinis, hashuojasi pats su savimi
+				hashes2.push_back(sha256(hashes.at(y) + hashes.at(y)));
+			}
+			y++;
+		}
+		hashes.clear();		//seni, dar nesujungti hashai dingsta, ateina jau karta sujungti hashai is antro vektoriaus, 
+								//antrame vektoriuje vel vyksta sujungimas/hashinimas, perkelimas i pirma tol, kol lieka tik vienas hashas
+		hashes = hashes2;
+		hashes2.clear();
+	}
+	return hashes.at(0);
+}
+
+std::string BlockHash() {
+
+	std::string Bhash, a1, a2; //bhash - galutinis bloko hashas
+	int t = -1;
+	while (t == -1){
+
+		a1 = sha256(n->Merkel + std::to_string(n->TimeStamp)); //a1 ir a2 yra tarpiniai
+		a2 = sha256(n->PreviousHash + std::to_string(n->Nonce));
+		Bhash = sha256(a1 + a2);
+	
+		t = 0;
+
+		for (int i = 0; i < n->DifficultyTarget; i++) // tikrina, ar sukurtas hashas atitinka nustatyta difficulty
+		{
+			if (Bhash.at(i) == '0') t++; //suskaiciuoja, kiek atitinka
+		}
+		if (t != n->DifficultyTarget) {	//cia patikrina, ar visi kiek reikia atitinka
+			t = -1;
+			n->Nonce = n->Nonce + 1; //jei neatitinka visi, keiciamas nonce, del jo keisis bendras hashas
+		}
+	}
+	return Bhash;
+}
 
 void BlockGenerator(int x) {
 
@@ -100,12 +157,12 @@ void BlockGenerator(int x) {
 	{
 		n = new Block;
 		n->AtrinktosT = ChoosingTransactions(); //cia pasirinks 100 atsitiktiniu transakciju vienam blokui
-		n->Merkel = MerkelRoot(n->T);
+		n->Merkel = MerkelRoot(n->AtrinktosT);
 		n->TimeStamp = std::time(0);
-		n->DifficultyTarget = 3;
-		n->Nonce = 1;
-		if (i == 0) n->PreviousHash = "0";
-		else n->PreviousHash = t->Hash;
+		n->DifficultyTarget = 3; //kiek nuliu pradzioje
+		n->Nonce = 1; 
+		if (i == 0) n->PreviousHash = "0"; //jei pirmas blokas, jo previous hashas yra 0
+		else n->PreviousHash = t->Hash;		//jei ne pirmas, jis paima praeito bloko hasha, t ziuri i sena bloka, n ziuri i nauja
 		if (i == 0) h = n;
 		else t->next = n;
 		t = n;
@@ -114,15 +171,6 @@ void BlockGenerator(int x) {
 	}
 }
 
-void Hash() {
-
-
-}
-
-void PreviousHash() {
-
-
-}
 
 
 
