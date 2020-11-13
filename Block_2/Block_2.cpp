@@ -83,7 +83,6 @@ void TransactionGenerator() {
 }
 
 
-
 std::vector<Transaction> ChoosingTransactions() {	//pasirenkamos 100 transakciju
 
 	int ran;
