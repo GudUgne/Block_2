@@ -1,4 +1,15 @@
 # Block_2 
+
+### [v0.2]() 2020-11-13
+
+- Data abiejų versijų ta pati, nes viskas sucommitinta iš local githubo tą pačią dieną;
+- Padaryta Verifikacijos funkcija:
+  - Jei transakcijos ID nesutampa su hashu arba user turima pinigų suma yra mažesnė nei siunčiama suma, transakcija negalioja, ji išmetama iš bendro pool'o;
+  - Kai transakcija išmetama, o blokui reikia pvz. 100 transakcijų (kurios cikliškai surenkamos ir tada atiduodamos blokui), ciklas sumažinamas vienetu, kad blokas negautų viena     transakcija mažiau;
+- Kuriami penki blokai kandidatai, kurių turimos transakcijos gali persidengti;
+- Vienas atrinktas blokas keliauja į galutinį listą, kiti kandidatai pamirštami ir kuriami naujai;
+- Turint 10000 transakcijų, galima sukurti 100 blokų;
+
 ### [v0.1]() 2020-11-13
  :money_with_wings: Second task of the Blockchain course :money_with_wings:
 
