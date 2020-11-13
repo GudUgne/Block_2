@@ -20,7 +20,7 @@ struct Transaction {
 };
 
 struct Block {
-	std::string Version = "0.1v";
+	std::string Version = "0.2v";
 	std::string Merkel; //cia saugoma daug hashu suhasuota i viena
 	int TimeStamp = 0;
 	int Nonce = 0;
@@ -33,7 +33,7 @@ struct Block {
 };
 
 Block* n; //node
-Block* h; //header		//linked listas
+Block* h = NULL; //header		//linked listas
 Block* t; //temp
 
 std::vector<Transaction> TransPool;		//visu transakciju poolas, globalus
@@ -66,10 +66,9 @@ void TransactionGenerator() {
 		ran = std::round(0 + (double)rand() / RAND_MAX * 999); //paimamas vienas useris atsitiktinis kaip siuntejas
 		n.Sender = User[ran].Public_Key;
 		n.Sum = std::round(1 + (double)rand() / RAND_MAX * (User[ran].Balance - 1)); //sugeneruojama, kad kazkiek pinigu atidave nuo 1 iki max kiek tas asmuo turi
-		User[ran].Balance = User[ran].Balance - n.Sum;	//atimami pinigai, panaudoti transakcijai
 		for (int y = 0; y < 1; y++){
 
-			ran = std::round(0 + (double)rand() / RAND_MAX * 1000);
+			ran = std::round(0 + (double)rand() / RAND_MAX * 999);
 			if (User[ran].Public_Key == u1) y--;	//generuoja atsitiktini gaveja, jei toks pat, kaip siuntejas, generuoja naujai
 		}
 		n.Receiver = User[ran].Public_Key;
@@ -82,6 +81,28 @@ void TransactionGenerator() {
 	
 }
 
+bool Validation(Transaction tikrinimas) {	//tikinama transakcija pries padavima is poolo
+
+	 //transakcija lieka - true, false - istrinti
+	//jei A issiuncia daugiau nei turi
+
+	int i = 0;
+	while (tikrinimas.Sender != User[i].Public_Key) {
+		i++;
+
+	}
+
+	if (User[i].Balance < tikrinimas.Sum) {
+		return false;
+	}
+
+	if (tikrinimas.ID != sha256(tikrinimas.Sender + std::to_string(tikrinimas.Sum) + tikrinimas.Receiver)) {
+		return false;
+	}
+
+	return true;
+
+}
 
 std::vector<Transaction> ChoosingTransactions() {	//pasirenkamos 100 transakciju
 
@@ -89,13 +110,22 @@ std::vector<Transaction> ChoosingTransactions() {	//pasirenkamos 100 transakciju
 	std::vector<Transaction> Atrenkamos; //laikinos, kurios veliau paduodamos jau i bloko transakciju vektoriu
 	//AtrinktosT // bloko atsirinktos 100
 	//Transpool //visos kiek yra transakciju, 10000
-
 		for (int i = 0; i < 100; i++) {
+
 			ran = std::round(0 + (double)rand() / RAND_MAX * (TransPool.size() - 1));	//paimama atsitiktine transakcija
-			Atrenkamos.push_back(TransPool.at(ran)); //paduodama is poolo
-			TransPool.erase(TransPool.begin() + ran);
+			if (Validation(TransPool.at(ran))) {	//patikrinama ar tinka
+				Atrenkamos.push_back(TransPool.at(ran)); //paduodama is poolo jei tinka
+			}
+			else { i--; }	//jei netinka, iesko naujos ir istrina
+
+
+			TransPool.erase(TransPool.begin() + ran);		//paduota transakcija istrinama is poolo
+
 		};
 
+		for (int j = 0; j < 100; j++) {	//transakciju grazinimas i poola, tam kad galetu persidengti
+			TransPool.push_back(Atrenkamos.at(j));
+		}
 		return Atrenkamos; //jos keliauja i bloke paskirta transakciju vektoriu
 }
 
@@ -127,7 +157,7 @@ std::string MerkelRoot(std::vector<Transaction> a)
 	return hashes.at(0);
 }
 
-std::string BlockHash() {
+/* std::string BlockHash() {		sitoje versijoje nebenaudojama funkcija
 
 	std::string Bhash, a1, a2; //bhash - galutinis bloko hashas
 	int t = -1;
@@ -149,43 +179,162 @@ std::string BlockHash() {
 		}
 	}
 	return Bhash;
+} */
+
+
+void TransactionDelete(std::vector<Transaction> trynimui) {	//paduodamos transakcijos naikinimui,
+															//kadangi tik kandidatu transakcijos gali persidengti
+	
+	for (int i = 0; i < trynimui.size(); i++) {		//ca visas sarasas kuriuos reikia istrinti is poolo
+
+		for (int j = 0; j < TransPool.size(); j++) {	//cia iesko kuri reikia istrinti per visa poola
+
+			if (trynimui.at(i).ID == TransPool.at(j).ID) {
+
+				TransPool.erase(TransPool.begin() + j);
+			}
+		}
+	}
+
+
 }
 
 void BlockGenerator(int x) {
 
-	for (int i = 0; i < x; i++)
-	{
-		n = new Block;
-		n->AtrinktosT = ChoosingTransactions(); //cia pasirinks 100 atsitiktiniu transakciju vienam blokui
-		n->Merkel = MerkelRoot(n->AtrinktosT);
-		n->TimeStamp = std::time(0);
-		n->DifficultyTarget = 3; //kiek nuliu pradzioje
-		n->Nonce = 1; 
-		if (i == 0) n->PreviousHash = "0"; //jei pirmas blokas, jo previous hashas yra 0
-		else n->PreviousHash = t->Hash;		//jei ne pirmas, jis paima praeito bloko hasha, t ziuri i sena bloka, n ziuri i nauja
-		if (i == 0) h = n;
-		else t->next = n;
-		t = n;
-		n->Hash = BlockHash();
-		std::cout << i << " blokas" << std::endl;
+	Block Candidates[5];  //penki kandidatai
+
+	int panaudotiblokai[5];
+
+	int  tikrinti, ran, tik = 0;
+	bool paleidimas = true;
+
+
+	for (int i = 0; i < x; i++) {		//vienas sitas prasukimas prideda viena bloka i lista
+
+		for (int i = 0; i < 5; i++) {
+			panaudotiblokai[i] = 0;		//pradzioje panaudotu bloku nera
+		}
+
+		for (int j = 0; j < 5; j++) {
+
+			Candidates[j].AtrinktosT = ChoosingTransactions();
+			Candidates[j].Merkel = MerkelRoot(Candidates[j].AtrinktosT);	//sukuriami kandidatai
+			Candidates[j].TimeStamp = std::time(0);
+			Candidates[j].DifficultyTarget = 5;
+			Candidates[j].Nonce = 1;
+			Candidates[j].Hash = "";
+
+		}
+
+		tikrinti = 100000;	 //kiek max tikrinimu
+
+		paleidimas = true;
+
+		while (paleidimas) {
+
+			while (true) {
+				ran = std::round(0 + (double)rand() / RAND_MAX * 4);	//random blokas
+				if (panaudotiblokai[ran] == 0) {	//jei blokas dar netikrintas, breakina
+					break;
+				}
+			}
+
+			//blokas atrinktas, dabar 
+			if (h == NULL) Candidates[ran].PreviousHash = "0"; //jei pirmas blokas, jo previous hashas yra 0
+			else Candidates[ran].PreviousHash = t->Hash;	//jei ne pirmas, t ziures i praeita hasha
+
+
+			std::string Bhash, a1, a2; //bhash - galutinis bloko hashas
+
+			for (int i = 0; i < tikrinti; i++) {
+				a1 = sha256(Candidates[ran].Merkel + std::to_string(Candidates[ran].TimeStamp)); //a1 ir a2 yra tarpiniai
+				a2 = sha256(Candidates[ran].PreviousHash + std::to_string(Candidates[ran].Nonce));
+				Bhash = sha256(a1 + a2);
+
+				tik = 0;
+
+				for (int j = 0; j < Candidates[ran].DifficultyTarget; j++) { // tikrina, ar sukurtas hashas atitinka nustatyta difficulty
+
+					if (Bhash.at(j) == '0') tik++; //suskaiciuoja, kiek atitinka
+				}
+				if (tik != Candidates[ran].DifficultyTarget) {	//cia patikrina, ar visi kiek reikia atitinka
+
+					Candidates[ran].Nonce = Candidates[ran].Nonce + 1; //jei neatitinka visi, keiciamas nonce, del jo keisis bendras hashas
+				}
+				else {
+					Candidates[ran].Hash = Bhash;	//jei viskas tinka, tas blokas gauna hasha
+					i = tikrinti;	//cia breakinamas 100k ciklas
+				}
+
+			}
+
+			if (Candidates[ran].Hash == "") {	//jei patikrino 100k kartu ir hasho vis tiek nerado
+				panaudotiblokai[ran] = 1;
+			}
+			else {
+				n = new Block;			//tinkamas blokas perkuopijuojamas i lista
+				n->AtrinktosT = Candidates[ran].AtrinktosT;
+				n->Merkel = Candidates[ran].Merkel;
+				n->TimeStamp = Candidates[ran].TimeStamp;
+				n->DifficultyTarget = Candidates[ran].DifficultyTarget; //kiek nuliu pradzioje
+				n->Nonce = Candidates[ran].Nonce;
+				n->PreviousHash = Candidates[ran].PreviousHash;
+				n->Hash = Candidates[ran].Hash;
+				if (i == 0) h = n;
+				t = n;		//t ziuri i katik sukurta bloka, kita pasukima jis ziures i praeita bloka
+				//n->Hash = BlockHash();
+				std::cout << i + 1 << " blokas" << std::endl << "Hashas: " << n->Hash << std::endl << "Nonce: " << n->Nonce << std::endl << "PrevH: " << n->PreviousHash << std::endl << "AtrinktosT: " << n->AtrinktosT.size() << std::endl;
+				paleidimas = false;
+				TransactionDelete(n->AtrinktosT);	//istrina panaudotas transakcijas, kad nesidubliuotu per blokus NE kandidatus
+
+				std::cout << "Transaction likutis: " << TransPool.size() << std::endl << std::endl;
+			}
+
+			if (panaudotiblokai[0] == 1 && panaudotiblokai[1] == 1 && panaudotiblokai[2] == 1	//jei ne vieno bloko nesurado
+				&& panaudotiblokai[3] == 1 && panaudotiblokai[4] == 1) {
+
+				panaudotiblokai[0] = 0;
+				panaudotiblokai[1] = 0;
+				panaudotiblokai[2] = 0;
+				panaudotiblokai[3] = 0;
+				panaudotiblokai[4] = 0;
+
+				tikrinti = tikrinti*2;	//padvigubina sukimu skaiciu
+			}
+
+			
+		}
 	}
+
+	
+
+	/*for (int i = 0; i < x; i++){
+			n = new Block;
+			n->AtrinktosT = ChoosingTransactions(); //cia pasirinks 100 atsitiktiniu transakciju vienam blokui
+			n->Merkel = MerkelRoot(n->AtrinktosT);
+			n->TimeStamp = std::time(0);
+			n->DifficultyTarget = 3; //kiek nuliu pradzioje
+			n->Nonce = 1;
+			if (i == 0) n->PreviousHash = "0"; //jei pirmas blokas, jo previous hashas yra 0
+			else n->PreviousHash = t->Hash;		//jei ne pirmas, jis paima praeito bloko hasha, t ziuri i sena bloka, n ziuri i nauja
+			if (i == 0) h = n;
+			else t->next = n;
+			t = n;
+			//n->Hash = BlockHash();
+			std::cout << i << " blokas" << std::endl;
+	} */
+	
 }
 
 
 
 
 int main() {
-
-	char atsakymas;
-	std::cout << "Ar reikalingas generavimas? T/N: ";
-	std::cin >> atsakymas;
-	if (atsakymas == 'T') {
 		
 		UserGenerator();
 		TransactionGenerator();
-		BlockGenerator(100); //100 bloku po 100 transakciju 
-		std::cout << "Sugeneruota " << std::endl;
-	}
+		BlockGenerator(50); 
+		std::cout << "Sugeneruoti visi blokai " << std::endl;
 
 	return 0;
 }
