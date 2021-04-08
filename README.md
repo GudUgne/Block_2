@@ -1,5 +1,5 @@
 # Block_2 
-### [v0.1]() 2020-11-13
+### [v0.1](https://github.com/GudUgne/Block_2/releases/tag/v0.1) 2020-11-13
  :money_with_wings: Second task of the Blockchain course :money_with_wings:
 
 - v0.1 versijoje buvo reikalaujama, jog naudotumėme savo pirmos užduoties metu sukurtą hash'ą, tačiau manasis nebuvo tinkamas. 
